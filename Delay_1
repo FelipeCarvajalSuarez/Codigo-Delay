@@ -1,0 +1,341 @@
+import pygame
+import tkinter
+from tkinter import *
+from tkinter import filedialog
+import tkinter.ttk as ttk
+import numpy as np
+from scipy.io import wavfile
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from PIL import ImageTk, Image  # Pillow
+
+root = Tk()
+root.title("Mixer 1.0")
+root.iconbitmap()
+root.geometry("790x400")
+# iniciar pygame
+pygame.mixer.init()
+
+
+# Funciones
+# Canal 1
+def add_song():
+    global sound1
+
+    song = filedialog.askopenfilename(initialdir="~/Desktop/", title="Selecciona el archivo",
+                                      filetypes=(("wav Files", "*.wav"),))
+    song = song.replace("~/Desktop/", "")
+    song_box.insert(END, song)
+
+    # Cargar audio
+    sound1 = pygame.mixer.Sound(song)
+    song_box.insert(END, "song")
+
+
+def play():
+    # Se necesita una variable global para que todas las funciones puedan acceder a ella
+    global sound1
+    song = song_box.get(ACTIVE)
+    sound1.play(loops=0)
+
+
+def stop():
+    global sound1
+    sound1.stop()
+    song_box.selection_clear(ACTIVE)
+
+
+def vol1(x):
+    global sound1
+    global nivel_1
+
+    # Conversión del valor del slider (float/decimal)
+    x_float = float(x)
+
+    # Como el slider funciona "al revés", esta resta soluciona el problema
+    # se debe usar el valor absoluto de la resta, de lo contrario habría valores negativos, como volumen -1
+    sound1.set_volume(np.abs(1 - x_float))
+    nivel_1 = sound1.get_volume()
+
+
+# Slider Delay
+def delay(y):
+    global delay
+    delay = float(y)
+
+
+def play_mix():
+    global mix_array, fm, suma
+    global sound1
+    global nivel_1
+    global delay
+    global t_min1
+    global suma
+
+    # Frecuencia de muestreo y conversión
+    fm = 44100
+    aud1 = np.array(sound1)
+
+    nivel1 = nivel_1
+
+    # FadeInAudio1
+    dur_fadein = fm * 3
+    fade_in_1 = np.linspace(0.09, nivel1, dur_fadein)
+    fade_in1 = np.zeros((len(fade_in_1), 2))
+    for x in range(len(fade_in_1)):
+        fade_in1[x][0] = fade_in_1[x]
+        fade_in1[x][1] = fade_in_1[x]
+
+    # Aplicar a Audio1
+    aud_1 = np.array(aud1)
+    aud_1[:132300] = aud_1[:132300] * fade_in1
+
+    # Aplicar nivel Audio1
+    aud_1_2 = np.array(aud_1)
+    aud_1_2[132300:264600] = aud_1_2[132300:264600] * nivel1
+
+    # FadeoutAudio
+    dur_fade_out = fm * 2
+    fade_out_1 = np.linspace(nivel1, 0.09, dur_fade_out)
+    fade_out1 = np.zeros((len(fade_out_1), 2))
+    for x in range(len(fade_out_1)):
+        fade_out1[x][0] = fade_out_1[x]
+        fade_out1[x][1] = fade_out_1[x]
+
+    # Aplicar a Audio1
+    aud_1f = np.array(aud_1_2)
+    aud_1f[264600:] = aud_1f[264600:] * fade_out1
+
+    # Mezclar Audios
+
+    suma = aud_1f
+    print(suma.shape)
+    suma1 = np.int16(suma)
+
+    f_mix = pygame.mixer.Sound(suma1)
+    f_mix.play(loops=0)
+
+
+def aplicar_delay():
+    global suma, fm
+    global array_delay_1
+    global sound1
+
+    # Valor del delay
+    # Este debe estar asociado al valor de desfase en la interfaz.
+    valor_delay = 125  # Minimo 1500 max 30K
+
+    vol = 0.9  # desde 0 hasta 0.9 si se pone mas clipea
+
+    factor = 0.8
+    factor1 = 0.6
+    factor2 = 0.4
+    factor3 = 0.2
+
+    sound1a = np.array(sound1)
+
+    array_delay = np.zeros((len(sound1a) + valor_delay, 2))
+    array_delay[valor_delay:] = sound1a[:]
+    array_delay
+
+    array_delay1 = np.zeros((len(array_delay) + valor_delay, 2))
+    array_delay1[valor_delay:] = array_delay[:]
+    array_delay1
+
+    array_delay2 = np.zeros((len(array_delay1) + valor_delay, 2))
+    array_delay2[valor_delay:] = array_delay1[:]
+    array_delay2
+
+    rep = 3  # Numero de repeticiones asosiado a la interfaz
+
+    if rep == 1:
+        mix = ((sound1a * factor) + (array_delay[:len(sound1a)] * factor1)) * vol
+    if rep == 2:
+        mix = ((sound1a * factor) + (array_delay[:len(sound1)] * factor1) + (
+                    array_delay1[:len(sound1)] * factor2)) * vol
+    if rep == 3:
+        mix = ((sound1a * factor) + (array_delay[:len(sound1a)] * factor1) + (array_delay1[:len(sound1a)] * factor2) +
+               (array_delay2[:len(sound1a)] * factor3)) * vol
+    wavfile.write("delay_mix125.wav", 48000, np.int16(mix))
+
+    # Valor del delay
+    # Este debe estar asociado al valor de desfase en la interfaz.
+
+
+# def #val_delay():
+# global valor_delay
+# valor_delay = 30000 #Minimo 1500 max 30K
+
+# def vol_general():
+#    global vol
+#    vol=0.9 #desde 0 hasta 0.9 si se pone mas clipea
+
+# def n_de_repeticiones():
+#    global sound1
+#   global valor_delay
+#  factor = 0.8
+# factor1 = 0.6
+# factor2 = 0.4
+# factor3 = 0.2
+
+#  array_delay = np.zeros((len(sound1) + valor_delay, 2))
+# array_delay[valor_delay:] = sound1[:]
+# array_delay
+
+# array_delay1 = np.zeros((len(array_delay) + valor_delay, 2))
+# array_delay1[valor_delay:] = array_delay[:]
+# array_delay1
+
+# array_delay2 = np.zeros((len(array_delay1) + valor_delay, 2))
+# array_delay2[valor_delay:] = array_delay1[:]
+# array_delay2
+
+# rep = 3  # Numero de repeticiones asosiado a la interfaz
+
+# if rep == 1:
+#   mix = ((audio * factor) + (array_delay[:len(audio)] * factor1)) * vol
+# if rep == 2:
+#    mix = ((sound1 * factor) + (array_delay[:len(sound1)] * factor1) + (array_delay1[:len(sound1)] * factor2)) * vol
+# if rep == 3:
+#   mix = ((sound1 * factor) + (array_delay[:len(sound1)] * factor1) + (array_delay1[:len(sound1)] * factor2) +
+#         (array_delay2[:len(sound1)] * factor3)) * vol
+# wavfile.write("delay_mix.wav", 44100, np.int16(mix))
+def aplicar_delay2():
+    global suma, fm
+    global array_delay_1
+    global sound1
+
+    # Valor del delay
+    # Este debe estar asociado al valor de desfase en la interfaz.
+    valor_delay = 250  # Minimo 1500 max 30K
+
+    vol = 0.9  # desde 0 hasta 0.9 si se pone mas clipea
+
+    factor = 0.8
+    factor1 = 0.6
+    factor2 = 0.4
+    factor3 = 0.2
+
+    sound1a = np.array(sound1)
+
+    array_delay = np.zeros((len(sound1a) + valor_delay, 2))
+    array_delay[valor_delay:] = sound1a[:]
+    array_delay
+
+    array_delay1 = np.zeros((len(array_delay) + valor_delay, 2))
+    array_delay1[valor_delay:] = array_delay[:]
+    array_delay1
+
+    array_delay2 = np.zeros((len(array_delay1) + valor_delay, 2))
+    array_delay2[valor_delay:] = array_delay1[:]
+    array_delay2
+
+    rep = 3  # Numero de repeticiones asosiado a la interfaz
+
+    if rep == 1:
+        mix = ((sound1a * factor) + (array_delay[:len(sound1a)] * factor1)) * vol
+    if rep == 2:
+        mix = ((sound1a * factor) + (array_delay[:len(sound1)] * factor1) + (
+                    array_delay1[:len(sound1)] * factor2)) * vol
+    if rep == 3:
+        mix = ((sound1a * factor) + (array_delay[:len(sound1a)] * factor1) + (array_delay1[:len(sound1a)] * factor2) +
+               (array_delay2[:len(sound1a)] * factor3)) * vol
+    wavfile.write("delay250_mix.wav", 48000, np.int16(mix))
+
+
+def aplicar_delay3():
+    global suma, fm
+    global array_delay_1
+    global sound1
+
+    # Valor del delay
+    # Este debe estar asociado al valor de desfase en la interfaz.
+    valor_delay = 500  # Minimo 1500 max 30K
+
+    vol = 0.9  # desde 0 hasta 0.9 si se pone mas clipea
+
+    factor = 0.8
+    factor1 = 0.6
+    factor2 = 0.4
+    factor3 = 0.2
+
+    sound1a = np.array(sound1)
+
+    array_delay = np.zeros((len(sound1a) + valor_delay, 2))
+    array_delay[valor_delay:] = sound1a[:]
+    array_delay
+
+    array_delay1 = np.zeros((len(array_delay) + valor_delay, 2))
+    array_delay1[valor_delay:] = array_delay[:]
+    array_delay1
+
+    array_delay2 = np.zeros((len(array_delay1) + valor_delay, 3))
+    array_delay2[valor_delay:] = array_delay1[:]
+    array_delay2
+
+    rep = 3  # Numero de repeticiones asosiado a la interfaz
+
+    if rep == 1:
+        mix = ((sound1a * factor) + (array_delay[:len(sound1a)] * factor1)) * vol
+    if rep == 2:
+        mix = ((sound1a * factor) + (array_delay[:len(sound1)] * factor1) + (
+                    array_delay1[:len(sound1)] * factor2)) * vol
+    if rep == 3:
+        mix = ((sound1a * factor) + (array_delay[:len(sound1a)] * factor1) + (array_delay1[:len(sound1a)] * factor2) +
+               (array_delay2[:len(sound1a)] * factor3)) * vol
+    wavfile.write("delay500_mix.wav", 48000, np.int16(mix))
+
+
+# Graficos
+# Graf Canal 1
+
+ch1_frame = Frame(root)
+ch1_frame.pack()
+
+img_play = Image.open('play.jpg')
+img_play = img_play.resize((35, 35), Image.ANTIALIAS)  # Redimension (Alto, Ancho)
+img_play = ImageTk.PhotoImage(img_play)
+
+img_stop = Image.open('stop.jpg')
+img_stop = img_stop.resize((35, 35), Image.ANTIALIAS)
+img_stop = ImageTk.PhotoImage(img_stop)
+
+song_box = Listbox(ch1_frame, bg="white", fg="green", width=10, height=2, selectbackground="blue",
+                   selectforeground="white")
+play_btn = Button(ch1_frame, image=img_play, command=play)
+stop_btn = Button(ch1_frame, text="Stop", image=img_stop, command=stop)
+
+song_box.grid(row=0, column=1, padx=5, pady=10)
+play_btn.grid(row=1, column=0, padx=5)
+stop_btn.grid(row=1, column=1)
+
+# MenuSongs
+menu1 = Menu(root)
+root.config(menu=menu1)
+
+add_song_menu = Menu(menu1)
+menu1.add_cascade(label="import audio", menu=add_song_menu)
+add_song_menu.add_command(label="importar", command=add_song)
+
+label_frame = Frame(root)
+label_frame.pack()
+
+Btn_delay = Button(label_frame, text="Delay de 125 ", command=aplicar_delay)
+Btn_delay.grid(row=7, column=6, padx=100, pady=1)
+
+Btn_delay2 = Button(label_frame, text="Delay de 250 ", command=aplicar_delay2)
+Btn_delay2.grid(row=7, column=7, padx=100, pady=1)
+
+Btn_delay2 = Button(label_frame, text="Delay de 500 ", command=aplicar_delay2)
+Btn_delay2.grid(row=7, column=8, padx=100, pady=1)
+
+# Sliders
+
+faders_frame = Frame(root)
+faders_frame.pack()
+
+vol_1 = ttk.Scale(faders_frame, from_=0.0, to=1.0, orient=VERTICAL, value=1, command=vol1, length=100)
+vol_1.grid(row=0, column=0, padx=50, pady=5)
+vol_1.set(0.5)
+
+root.mainloop()
